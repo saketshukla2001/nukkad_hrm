@@ -13,22 +13,16 @@ use Illuminate\Support\Str;
 class OfferLetterController extends Controller
 {
     // Show edit template page
-    public function editTemplate()
+    public function editTemplate(?int $templateId = null)
     {
-        $template = OfferLetter::with('images')->first();
+        $this->ensureDefaultTemplateExists();
 
-        if (!$template) {
-            $template = OfferLetter::create([
-                'title' => 'Offer Letter',
-                'header' => '<h2 style="text-align:center; margin:0 0 12px;">Offer Letter</h2>',
-                'content' => '<p>Dear @{{name}},</p><p>We welcome you to our organization and look forward to your contribution to the growth of the organization.</p><p>We are pleased to offer you the position of <strong>@{{designation}}</strong> at <strong>@{{location}}</strong>.</p><p>Date of commencement: <strong>@{{date_of_commencement}}</strong></p><p>Monthly Salary: <strong>@{{monthly_salary}}</strong></p><p>Annual CTC: <strong>@{{ctc_annual}}</strong> (<em>@{{ctc_in_word}}</em>)</p><p>@{{images}}</p><p>Please find the compensation structure below:</p><p>@{{ctc_table}}</p>',
-                'table_html' => null,
-                'footer' => '<p style="margin-top:18px;">Regards,<br><strong>Nukkad HRM</strong></p>',
-            ]);
-            $template->load('images');
-        }
+        $template = OfferLetter::with('images')
+            ->when($templateId, fn ($query) => $query->where('id', $templateId))
+            ->firstOrFail();
+        $templates = OfferLetter::orderBy('title')->orderBy('id')->get();
 
-        return view('admin.offer_letters.edit_template', compact('template'));
+        return view('admin.offer_letters.edit_template', compact('template', 'templates'));
     }
 
     // Update template
@@ -40,28 +34,57 @@ class OfferLetterController extends Controller
             'content' => 'required|string',
             'table_html' => 'nullable|string',
             'footer' => 'nullable|string',
+            'template_id' => 'nullable|exists:offer_letters,id',
+            'save_as_title' => 'nullable|string|max:255',
+            'action' => 'nullable|string|in:update,save_as',
         ]);
 
-        $template = OfferLetter::first();
-        $template->update([
-            'title' => $request->title,
+        $template = OfferLetter::find($request->template_id) ?: $this->ensureDefaultTemplateExists();
+        $data = [
+            'title' => $request->title ?: 'Offer Letter',
             'header' => $request->header,
             'content' => $request->content,
             'table_html' => $request->table_html,
             'footer' => $request->footer,
-        ]);
+        ];
+
+        if ($request->action === 'save_as') {
+            $request->validate([
+                'save_as_title' => 'required|string|max:255',
+            ]);
+
+            $newTemplate = OfferLetter::create(array_merge($data, [
+                'title' => $request->save_as_title,
+            ]));
+
+            $template->loadMissing('images');
+            foreach ($template->images as $image) {
+                $newTemplate->images()->create([
+                    'name' => $image->name,
+                    'path' => $image->path,
+                    'sort_order' => $image->sort_order,
+                ]);
+            }
+
+            return redirect()
+                ->route('admin.offerletter.template.edit.saved', $newTemplate->id)
+                ->with('success', 'Offer letter template saved as "' . $newTemplate->title . '" successfully!');
+        }
+
+        $template->update($data);
 
         return back()->with('success', 'Offer letter template updated successfully!');
     }
 
     public function uploadImage(Request $request)
     {
-        $template = OfferLetter::firstOrFail();
-
         $request->validate([
+            'template_id' => 'required|exists:offer_letters,id',
             'image' => 'required|file|mimes:jpg,jpeg,png,webp|max:5120',
             'name' => 'nullable|string|max:255',
         ]);
+
+        $template = OfferLetter::findOrFail($request->template_id);
 
         $file = $request->file('image');
         $filename = time() . '_' . Str::random(6) . '_' . preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $file->getClientOriginalName());
@@ -99,7 +122,9 @@ class OfferLetterController extends Controller
     public function generate($candidateId)
     {
         $candidate = Candidate::findOrFail($candidateId);
-        $template  = OfferLetter::firstOrFail();
+        $this->ensureDefaultTemplateExists();
+        $templates = OfferLetter::orderBy('title')->orderBy('id')->get();
+        $template = OfferLetter::find(request('template_id')) ?: $templates->first();
 
         $content = $this->renderOfferLetterForCandidate($template, $candidate, false);
 
@@ -108,13 +133,16 @@ class OfferLetterController extends Controller
             'candidateId' => $candidateId,
             'candidateName' => $candidate->name,
             'aadharUrl' => $this->candidateAadharUrl($candidate),
+            'templates' => $templates,
+            'template' => $template,
         ]);
     }
 
     public function download($candidateId)
     {
         $candidate = Candidate::findOrFail($candidateId);
-        $template  = OfferLetter::firstOrFail();
+        $this->ensureDefaultTemplateExists();
+        $template = OfferLetter::find(request('template_id')) ?: OfferLetter::firstOrFail();
 
         $content = $this->renderOfferLetterForCandidate($template, $candidate, true);
 
@@ -128,6 +156,23 @@ class OfferLetterController extends Controller
         return Pdf::loadHTML($html)
             ->setPaper('a4')
             ->download($filename);
+    }
+
+    private function ensureDefaultTemplateExists(): OfferLetter
+    {
+        $template = OfferLetter::first();
+
+        if ($template) {
+            return $template;
+        }
+
+        return OfferLetter::create([
+            'title' => 'Offer Letter',
+            'header' => '<h2 style="text-align:center; margin:0 0 12px;">Offer Letter</h2>',
+            'content' => '<p>Dear @{{name}},</p><p>We welcome you to our organization and look forward to your contribution to the growth of the organization.</p><p>We are pleased to offer you the position of <strong>@{{designation}}</strong> at <strong>@{{location}}</strong>.</p><p>Date of commencement: <strong>@{{date_of_commencement}}</strong></p><p>Monthly Salary: <strong>@{{monthly_salary}}</strong></p><p>Annual CTC: <strong>@{{ctc_annual}}</strong> (<em>@{{ctc_in_word}}</em>)</p><p>Please find the compensation structure below:</p><p>@{{ctc_table}}</p>',
+            'table_html' => null,
+            'footer' => '<p style="margin-top:18px;">Regards,<br><strong>Nukkad HRM</strong></p>',
+        ]);
     }
 
     private function renderOfferLetterForCandidate(OfferLetter $template, Candidate $candidate, bool $forPdf = false): string
@@ -148,10 +193,12 @@ class OfferLetterController extends Controller
         // Custom table (editable in admin). If empty, fallback to auto CTC.
         $customTable = trim((string) ($template->table_html ?? ''));
         $tableHtml = $customTable !== '' ? $customTable : $ctcTableHtml;
+        $tableHtml = $this->normalizeOfferTables($tableHtml);
 
         $imagesHtml = $this->renderImagesHtml($template);
         $aadharPreviewHtml = $this->renderAadharHtml($candidate, $forPdf);
         $aadharUrl = $this->candidateAadharUrl($candidate);
+        $signatureHtml = $this->renderSignatureHtml($forPdf);
 
         // Build replacement map from all candidate fields + common aliases.
         $replacements = $this->buildCandidateReplacementMap($candidate, [
@@ -161,15 +208,18 @@ class OfferLetterController extends Controller
             'images' => $imagesHtml,
             'aadhar_url' => $aadharUrl,
             'aadhar_preview' => $aadharPreviewHtml,
+            'signature' => $signatureHtml,
         ]);
 
         $header = str_replace(array_keys($replacements), array_values($replacements), $header);
         $body = str_replace(array_keys($replacements), array_values($replacements), $body);
         $footer = str_replace(array_keys($replacements), array_values($replacements), $footer);
         $tableHtml = str_replace(array_keys($replacements), array_values($replacements), $tableHtml);
+        $tableHtml = $this->normalizeOfferTables($tableHtml);
 
-        // Replace any React/JSX accidental block for images with our placeholder
-        $body = preg_replace('/\{images\.map\([\s\S]*?\)\)\s*\}/', '@{{images}}', $body) ?? $body;
+        // Clean up React/JSX accidental blocks so preview/PDF render properly.
+        $body = $this->sanitizeReactishMarkup($body, $imagesHtml, $signatureHtml);
+        $body = $this->placeSignatureAfterWelcomeLine($body, $signatureHtml);
 
         // If body includes @{{table}} placeholder, inject there; otherwise append table if needed.
         $hasTablePlaceholder = str_contains($body, '@{{table}}') || str_contains($body, '{{table}}');
@@ -180,6 +230,7 @@ class OfferLetterController extends Controller
         } elseif (!$hasAnyTable) {
             $body .= '<br><br>' . $tableHtml;
         }
+        $body = $this->normalizeOfferTables($body);
 
         // If template didn't include aadhar placeholder, auto append it (preview + PDF)
         $hasAadharPlaceholder =
@@ -193,6 +244,7 @@ class OfferLetterController extends Controller
         }
 
         $html = trim($header . "\n" . $body . "\n" . $footer);
+        $html = $this->removeDuplicateSignatureBlocks($html, $signatureHtml);
 
         // Support legacy placeholders like:
         // {employeeDetails.basicPay} and {employeeDetails.basicPay * 12}
@@ -252,6 +304,168 @@ class OfferLetterController extends Controller
             . '<div style="font-weight:700; margin-bottom:6px;">' . $label . '</div>'
             . '<a href="' . $url . '">' . $url . '</a>'
             . '</div>';
+    }
+
+    private function renderSignatureHtml(bool $forPdf = false): string
+    {
+        // For PDF, prefer data-uri to avoid remote fetching issues.
+        $path = public_path('assets/signature.svg');
+        if (!is_file($path)) {
+            return '';
+        }
+
+        $src = asset('assets/signature.svg');
+        if ($forPdf) {
+            $data = base64_encode((string) file_get_contents($path));
+            $src = "data:image/svg+xml;base64,{$data}";
+        }
+
+        return '<div style="margin-top:10px;">'
+            . '<img src="' . $src . '" alt="Signature" style="max-width:240px; height:auto; display:block;">'
+            . '</div>';
+    }
+
+    private function placeSignatureAfterWelcomeLine(string $html, string $signatureHtml): string
+    {
+        if ($signatureHtml === '') {
+            return $html;
+        }
+
+        $html = str_replace(['@{{signature}}', '{{signature}}'], '', $html);
+        $html = preg_replace(
+            '/<div[^>]*>\s*<img(?=[^>]*\balt=["\']Signature["\'])[^>]*>\s*<\/div>/i',
+            '',
+            $html
+        ) ?? $html;
+        $html = preg_replace(
+            '/<img(?=[^>]*\balt=["\']Signature["\'])[^>]*>/i',
+            '',
+            $html
+        ) ?? $html;
+
+        $welcomePattern = '/(<p[^>]*>[^<]*We welcome you to our organization and look forward to your contribution to the growth of the organization\.[\s\S]*?<\/p>)/i';
+        if (preg_match($welcomePattern, $html)) {
+            return preg_replace($welcomePattern, '$1' . $signatureHtml, $html, 1) ?? $html;
+        }
+
+        $welcomeTextPattern = '/(We welcome you to our organization and look forward to your contribution to the growth of the organization\.)/i';
+        if (preg_match($welcomeTextPattern, $html)) {
+            return preg_replace($welcomeTextPattern, '$1' . $signatureHtml, $html, 1) ?? $html;
+        }
+
+        return $html . $signatureHtml;
+    }
+
+    private function removeDuplicateSignatureBlocks(string $html, string $signatureHtml): string
+    {
+        if ($signatureHtml === '') {
+            return $html;
+        }
+
+        $found = false;
+
+        return preg_replace_callback(
+            '/<div[^>]*>\s*<img(?=[^>]*\balt=["\']Signature["\'])[^>]*>\s*<\/div>|<img(?=[^>]*\balt=["\']Signature["\'])[^>]*>/i',
+            function (array $match) use (&$found) {
+                if ($found) {
+                    return '';
+                }
+
+                $found = true;
+                return $match[0];
+            },
+            $html
+        ) ?? $html;
+    }
+
+    private function normalizeOfferTables(string $html): string
+    {
+        if (!str_contains(strtolower($html), '<table')) {
+            return $html;
+        }
+
+        libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $wrappedHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>' . $html . '</body></html>';
+
+        if (!$dom->loadHTML($wrappedHtml, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD)) {
+            libxml_clear_errors();
+            return $html;
+        }
+
+        foreach ($dom->getElementsByTagName('table') as $table) {
+            $maxColumns = 0;
+            $rows = [];
+
+            foreach ($table->getElementsByTagName('tr') as $row) {
+                $columns = 0;
+                $cells = [];
+
+                foreach ($row->childNodes as $cell) {
+                    if (!$cell instanceof \DOMElement || !in_array(strtolower($cell->tagName), ['td', 'th'], true)) {
+                        continue;
+                    }
+
+                    $columns += max(1, (int) $cell->getAttribute('colspan'));
+                    $cells[] = $cell;
+                }
+
+                if ($columns > 0) {
+                    $maxColumns = max($maxColumns, $columns);
+                    $rows[] = ['columns' => $columns, 'cells' => $cells];
+                }
+            }
+
+            if ($maxColumns < 2) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if ($row['columns'] >= $maxColumns || empty($row['cells'])) {
+                    continue;
+                }
+
+                $lastCell = $row['cells'][count($row['cells']) - 1];
+                $currentColspan = max(1, (int) $lastCell->getAttribute('colspan'));
+                $lastCell->setAttribute('colspan', (string) ($currentColspan + ($maxColumns - $row['columns'])));
+            }
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body) {
+            libxml_clear_errors();
+            return $html;
+        }
+
+        $normalized = '';
+        foreach ($body->childNodes as $child) {
+            $normalized .= $dom->saveHTML($child);
+        }
+
+        libxml_clear_errors();
+        return $normalized;
+    }
+
+    private function sanitizeReactishMarkup(string $html, string $imagesHtml, string $signatureHtml): string
+    {
+        // 1) Replace a typical JSX images map block (or just the map expression).
+        $html = preg_replace('/\{images\.map\([\s\S]*?\)\)\s*\}/', '@{{images}}', $html) ?? $html;
+
+        // If wrapper div exists around the map, replace whole block with images.
+        $html = preg_replace(
+            '/<div[^>]*>\s*@\{\{images\}\}\s*<\/div>/i',
+            '@{{images}}',
+            $html
+        ) ?? $html;
+
+        // Now resolve @{{images}} into actual images HTML, or remove it when no images exist.
+        $html = str_replace(['@{{images}}', '{{images}}'], $imagesHtml, $html);
+
+        // 2) Remove React-style head signature binding if present.
+        // Signature should be controlled only via @{{signature}} placeholder.
+        $html = preg_replace('/<img[^>]*src=\{headImg\}[^>]*>/i', '', $html) ?? $html;
+
+        return $html;
     }
 
     private function buildCandidateReplacementMap(Candidate $candidate, array $extra = []): array

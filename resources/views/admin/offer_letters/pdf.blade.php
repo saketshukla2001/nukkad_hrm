@@ -15,7 +15,8 @@
             color: #000;
         }
         table {
-            width: 100%;
+            width: 100% !important;
+            max-width: 100% !important;
             border-collapse: collapse;
             margin: 16px 0;
             table-layout: fixed;
@@ -28,6 +29,7 @@
             word-break: break-word;
             overflow-wrap: anywhere;
             white-space: normal;
+            box-sizing: border-box;
         }
         table td.text-left {
             text-align: left;
@@ -46,4 +48,3 @@
     {!! $content !!}
 </body>
 </html>
-

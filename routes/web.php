@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\CandidateController;
 use App\Http\Controllers\Admin\OfferLetterController;
+use App\Http\Controllers\Admin\SettingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,6 +25,11 @@ Route::prefix('admin')->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
 
+    // Settings
+    Route::get('/settings', [SettingController::class, 'index'])->name('admin.settings.index');
+    Route::post('/settings/profile', [SettingController::class, 'updateProfile'])->name('admin.settings.profile.update');
+    Route::post('/settings/password', [SettingController::class, 'updatePassword'])->name('admin.settings.password.update');
+
     // Candidates
     Route::get('/candidates', [CandidateController::class, 'index'])->name('admin.candidates.index');
     Route::get('/candidates/create', [CandidateController::class, 'create'])->name('admin.candidates.create');
@@ -33,6 +39,7 @@ Route::prefix('admin')->group(function () {
     Route::post('/candidates/{id}/update', [CandidateController::class, 'update'])->name('admin.candidates.update');
 
     Route::get('/offer-letter/template', [OfferLetterController::class, 'editTemplate'])->name('admin.offerletter.template.edit');
+    Route::get('/offer-letter/templates/{templateId}/edit', [OfferLetterController::class, 'editTemplate'])->name('admin.offerletter.template.edit.saved');
     Route::post('/offer-letter/template', [OfferLetterController::class, 'updateTemplate'])->name('admin.offerletter.template.update');
     Route::post('/offer-letter/template/images', [OfferLetterController::class, 'uploadImage'])->name('admin.offerletter.images.upload');
     Route::get('/offer-letter/template/images/{imageId}/delete', [OfferLetterController::class, 'deleteImage'])->name('admin.offerletter.images.delete');

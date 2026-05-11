@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
 </head>
 <body>
+    <input type="checkbox" id="sidebar-toggle" class="sidebar-toggle">
+    <label for="sidebar-toggle" class="sidebar-overlay" aria-label="Close sidebar"></label>
 
     <!-- Sidebar -->
     <div class="sidebar">
@@ -48,11 +50,11 @@
             </a>
         </div>
 
-        <div class="menu-group">
+        <!-- <div class="menu-group">
             <div class="menu-title">More</div>
             <a href="#">👥 Employees</a>
-            <a href="#">⚙️ Settings</a>
-        </div>
+            <a href="{{ route('admin.settings.index') }}" class="{{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">⚙️ Settings</a>
+        </div> -->
 
         <div class="sidebar-bottom">
             <a href="{{ route('admin.logout') }}">🚪 Logout</a>
@@ -63,7 +65,10 @@
     <div class="main">
         <!-- Topbar -->
         <div class="topbar">
-            <div class="title">Nukkad HRM</div>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <label for="sidebar-toggle" class="sidebar-toggle-btn" aria-label="Open sidebar">☰</label>
+                <div class="title">Nukkad HRM</div>
+            </div>
             <div class="user">Welcome, Admin</div>
         </div>
 

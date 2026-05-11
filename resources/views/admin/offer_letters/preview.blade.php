@@ -15,13 +15,14 @@
     }
 
     /* Tables inside content */
-    table {
-        width: 100%;
+    .a4-page table {
+        width: 100% !important;
+        max-width: 100% !important;
         border-collapse: collapse;
         margin: 20px 0;
         table-layout: fixed;
     }
-    table th, table td {
+    .a4-page table th, .a4-page table td {
         border: 1px solid #000;
         padding: 6px 7px;
         text-align: center;
@@ -29,8 +30,9 @@
         word-break: break-word;
         overflow-wrap: anywhere;
         white-space: normal;
+        box-sizing: border-box;
     }
-    table td.text-left {
+    .a4-page table td.text-left {
         text-align: left;
     }
 
@@ -50,6 +52,7 @@
             width: 210mm; min-height: 297mm;
             margin: 0; padding: 20mm;
             border: none;
+            overflow: hidden;
         }
     }
 </style>
@@ -63,8 +66,20 @@
             @endif
         </div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            @if(!empty($templates) && $templates->count())
+                <form method="GET" action="{{ route('admin.offerletter.generate', $candidateId) }}" style="display:flex; gap:8px; align-items:center; margin:0;">
+                    <select name="template_id" onchange="this.form.submit()" style="min-width:190px;">
+                        @foreach($templates as $savedTemplate)
+                            <option value="{{ $savedTemplate->id }}" @selected(!empty($template) && $savedTemplate->id === $template->id)>
+                                {{ $savedTemplate->title ?: 'Offer Letter' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <button type="submit" class="btn-secondary">Use Template</button>
+                </form>
+            @endif
             @if(!empty($candidateId))
-                <a class="btn-primary" href="{{ route('admin.offerletter.download', $candidateId) }}">⬇️ Download PDF</a>
+                <a class="btn-primary" href="{{ route('admin.offerletter.download', ['candidateId' => $candidateId, 'template_id' => $template->id ?? null]) }}">⬇️ Download PDF</a>
             @endif
             @if(!empty($aadharUrl))
                 <a class="btn-secondary" href="{{ $aadharUrl }}" target="_blank" rel="noopener">🪪 Download Aadhar</a>
