@@ -4,79 +4,74 @@
     <meta charset="UTF-8">
     <title>Nukkad HRM - Admin Panel</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    {{-- Laravel way asset --}}
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}">
 </head>
 <body>
     <input type="checkbox" id="sidebar-toggle" class="sidebar-toggle">
     <label for="sidebar-toggle" class="sidebar-overlay" aria-label="Close sidebar"></label>
 
-    <!-- Sidebar -->
-    <div class="sidebar">
+    <aside class="sidebar">
         <div class="brand">
-            <span style="display:inline-flex; width:34px; height:34px; border-radius:12px; align-items:center; justify-content:center; background:rgba(79,70,229,0.18); border:1px solid rgba(255,255,255,0.10);">NH</span>
-            <div style="display:flex; flex-direction:column; line-height:1.1;">
-                <span style="font-size:14px; opacity:0.85; font-weight:700;">Admin</span>
-                <span>Nukkad HRM</span>
+            <span class="brand-logo">NH</span>
+            <div class="brand-text">
+                <span class="brand-label">Admin Panel</span>
+                <span class="brand-name">Nukkad HRM</span>
             </div>
         </div>
 
         <div class="sidebar-section">
             <a href="{{ route('admin.dashboard') }}" class="{{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-                🧭 Dashboard
+                <span class="nav-icon">📊</span> Dashboard
             </a>
         </div>
 
-        <!-- Candidates Menu -->
         <div class="menu-group">
             <div class="menu-title">Candidates</div>
-
             <a href="{{ route('admin.candidates.index') }}" class="{{ request()->routeIs('admin.candidates.index') ? 'active' : '' }}">
-                📋 Candidate List
+                <span class="nav-icon">👥</span> Candidate List
             </a>
-
             <a href="{{ route('admin.candidates.create') }}" class="{{ request()->routeIs('admin.candidates.create') ? 'active' : '' }}">
-                ➕ Add Candidate
+                <span class="nav-icon">➕</span> Add Candidate
             </a>
         </div>
 
-        <!-- Offer Letter Menu -->
         <div class="menu-group">
             <div class="menu-title">Offer Letters</div>
-
             <a href="{{ route('admin.offerletter.template.edit') }}" class="{{ request()->routeIs('admin.offerletter.template.*') ? 'active' : '' }}">
-                ✏️ Edit Offer Template
+                <span class="nav-icon">📝</span> Edit Offer Template
             </a>
         </div>
 
-        <!-- <div class="menu-group">
-            <div class="menu-title">More</div>
-            <a href="#">👥 Employees</a>
-            <a href="{{ route('admin.settings.index') }}" class="{{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">⚙️ Settings</a>
-        </div> -->
-
         <div class="sidebar-bottom">
-            <a href="{{ route('admin.logout') }}">🚪 Logout</a>
+            <a href="{{ route('admin.logout') }}">
+                <span class="nav-icon">🚪</span> Logout
+            </a>
         </div>
-    </div>
+    </aside>
 
-    <!-- Main -->
     <div class="main">
-        <!-- Topbar -->
-        <div class="topbar">
-            <div style="display:flex; align-items:center; gap:12px;">
+        <header class="topbar">
+            <div class="topbar-left">
                 <label for="sidebar-toggle" class="sidebar-toggle-btn" aria-label="Open sidebar">☰</label>
-                <div class="title">Nukkad HRM</div>
+                <div>
+                    <div class="title">Nukkad HRM</div>
+                    <div class="page-breadcrumb">Human Resource Management</div>
+                </div>
             </div>
-            <div class="user">Welcome, Admin</div>
-        </div>
+            <div class="topbar-right">
+                <div class="user-pill">
+                    <div class="user-avatar">A</div>
+                    <div class="user-info">
+                        <div class="user-name">Admin</div>
+                        <div class="user-role">Super Administrator</div>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-        <!-- Page Content -->
-        <div class="content">
+        <main class="content">
             @yield('content')
-        </div>
+        </main>
     </div>
-
 </body>
 </html>

@@ -179,16 +179,17 @@ class OfferLetterController extends Controller
     {
         $date = now()->format('d-m-Y');
 
-        $ctc = $this->buildCtcBreakdown($candidate);
+        $salary = $this->calculateSalaryStructure($candidate);
+        $ctc = $this->buildCtcBreakdown($candidate, $salary);
         $ctcTableHtml = view('admin.offer_letters.partials.ctc_table', [
             'ctc' => $ctc,
         ])->render();
 
         $template->loadMissing('images');
 
-        $header = (string) ($template->header ?? '');
-        $body = (string) ($template->content ?? '');
-        $footer = (string) ($template->footer ?? '');
+        $header = $this->stripLegacyCompanyHeader((string) ($template->header ?? ''));
+        $body = $this->stripLegacyCompanyHeader((string) ($template->content ?? ''));
+        $footer = $this->stripLegacyCompanyHeader((string) ($template->footer ?? ''));
 
         // Custom table (editable in admin). If empty, fallback to auto CTC.
         $customTable = trim((string) ($template->table_html ?? ''));
@@ -201,7 +202,7 @@ class OfferLetterController extends Controller
         $signatureHtml = $this->renderSignatureHtml($forPdf);
 
         // Build replacement map from all candidate fields + common aliases.
-        $replacements = $this->buildCandidateReplacementMap($candidate, [
+        $replacements = $this->buildCandidateReplacementMap($candidate, array_merge([
             'date' => $date,
             'ctc_table' => $ctcTableHtml,
             'table' => $tableHtml,
@@ -209,7 +210,7 @@ class OfferLetterController extends Controller
             'aadhar_url' => $aadharUrl,
             'aadhar_preview' => $aadharPreviewHtml,
             'signature' => $signatureHtml,
-        ]);
+        ], $this->salaryPlaceholderMap($salary)));
 
         $header = str_replace(array_keys($replacements), array_values($replacements), $header);
         $body = str_replace(array_keys($replacements), array_values($replacements), $body);
@@ -248,7 +249,7 @@ class OfferLetterController extends Controller
 
         // Support legacy placeholders like:
         // {employeeDetails.basicPay} and {employeeDetails.basicPay * 12}
-        return $this->replaceEmployeeDetailsTokens($html, $candidate);
+        return $this->replaceEmployeeDetailsTokens($html, $candidate, $salary);
     }
 
     private function candidateAadharUrl(Candidate $candidate): ?string
@@ -446,6 +447,28 @@ class OfferLetterController extends Controller
         return $normalized;
     }
 
+    private function stripLegacyCompanyHeader(string $html): string
+    {
+        if ($html === '') {
+            return $html;
+        }
+
+        $html = preg_replace('/^(\s*(&lt;&gt;|<>)\s*)+/i', '', $html) ?? $html;
+
+        $patterns = [
+            // Raw or HTML-encoded <> followed by HSBE address block.
+            '/^(\s*(&lt;&gt;|<>)\s*)?HSBE\s+LIMITED\s*<br\s*\/?>\s*Corporate Office[^<]*<br\s*\/?>\s*Dynasty Business Park[^<]*<br\s*\/?>\s*Maharashtra[^<]*<br\s*\/?>\s*(?:<p[^>]*>EmailId:[^<]*<\/p>\s*<br\s*\/?>\s*)?(?:<div[^>]*><\/div>\s*)?/is',
+            // Standalone leading diamond markers.
+            '/^(\s*(&lt;&gt;|<>)\s*)+/i',
+        ];
+
+        foreach ($patterns as $pattern) {
+            $html = preg_replace($pattern, '', $html, 1) ?? $html;
+        }
+
+        return ltrim($html);
+    }
+
     private function sanitizeReactishMarkup(string $html, string $imagesHtml, string $signatureHtml): string
     {
         // 1) Replace a typical JSX images map block (or just the map expression).
@@ -502,15 +525,40 @@ class OfferLetterController extends Controller
         return $map;
     }
 
-    private function replaceEmployeeDetailsTokens(string $html, Candidate $candidate): string
+    private function replaceEmployeeDetailsTokens(string $html, Candidate $candidate, ?array $salary = null): string
     {
         $attrs = $candidate->getAttributes();
+        $salary ??= $this->calculateSalaryStructure($candidate);
+        $computed = [
+            'basic_pay' => $salary['basic_monthly'],
+            'hra' => $salary['hra_monthly'],
+            'monthly_salary' => $salary['gross_monthly'],
+            'gross_salary' => $salary['gross_monthly'],
+            'special_allowance' => $salary['special_allowance_monthly'],
+            'epf_employee' => $salary['epf_employee_monthly'],
+            'epf_employer' => $salary['epf_employer_monthly'],
+            'esic_employee' => $salary['esic_employee_monthly'],
+            'esic_employer' => $salary['esic_employer_monthly'],
+            'gratuity_employee' => $salary['gratuity_employee_monthly'],
+            'gratuity_employer' => $salary['gratuity_employer_monthly'],
+            'in_hand_salary' => $salary['in_hand_monthly'],
+            'ctc_annual' => $salary['ctc_annual'],
+        ];
 
         $keyMap = [
             // map common camelCase tokens to DB columns
             'basicPay' => 'basic_pay',
             'hra' => 'hra',
             'monthlySalary' => 'monthly_salary',
+            'grossSalary' => 'gross_salary',
+            'specialAllowance' => 'special_allowance',
+            'epfEmployee' => 'epf_employee',
+            'epfEmployer' => 'epf_employer',
+            'esicEmployee' => 'esic_employee',
+            'esicEmployer' => 'esic_employer',
+            'gratuityEmployee' => 'gratuity_employee',
+            'gratuityEmployer' => 'gratuity_employer',
+            'inHandSalary' => 'in_hand_salary',
             'annualCtc' => 'ctc_annual',
             'ctcAnnual' => 'ctc_annual',
             'ctcInWord' => 'ctc_in_word',
@@ -525,8 +573,11 @@ class OfferLetterController extends Controller
             'targetPercentage' => 'target_percentage',
         ];
 
-        $get = function (string $tokenKey) use ($attrs, $keyMap): float|string {
+        $get = function (string $tokenKey) use ($attrs, $keyMap, $computed): float|string {
             $column = $keyMap[$tokenKey] ?? $tokenKey;
+            if (array_key_exists($column, $computed)) {
+                return (float) $computed[$column];
+            }
             $value = $attrs[$column] ?? '';
             return is_numeric($value) ? (float) $value : (string) $value;
         };
@@ -580,23 +631,128 @@ class OfferLetterController extends Controller
         return '<div style="margin:10px 0;">' . $items . '</div>';
     }
 
-    private function buildCtcBreakdown(Candidate $candidate): array
+    private function calculateSalaryStructure(Candidate $candidate): array
     {
-        $basicMonthly = (float) ($candidate->basic_pay ?? 0);
-        $hraMonthly = (float) ($candidate->hra ?? 0);
-        $totalMonthly = (float) ($candidate->monthly_salary ?? 0);
+        $ctcAnnual = (float) ($candidate->ctc_annual ?? 0);
+        $ctcMonthly = $ctcAnnual > 0 ? $ctcAnnual / 12 : 0.0;
 
-        $basicAnnual = $basicMonthly * 12;
-        $hraAnnual = $hraMonthly * 12;
-        $totalAnnual = (float) ($candidate->ctc_annual ?? ($totalMonthly * 12));
+        if ($ctcAnnual > 0) {
+            $basicAnnual = $ctcAnnual * 0.50;
+            $basicMonthly = $basicAnnual / 12;
+            $hraAnnual = $basicAnnual * 0.40;
+            $hraMonthly = $hraAnnual / 12;
+        } else {
+            $basicMonthly = (float) ($candidate->basic_pay ?? 0);
+            $hraMonthly = (float) ($candidate->hra ?? 0);
+            $basicAnnual = $basicMonthly * 12;
+            $hraAnnual = $hraMonthly * 12;
+            $ctcMonthly = (float) ($candidate->monthly_salary ?? ($basicMonthly + $hraMonthly));
+            $ctcAnnual = $ctcMonthly * 12;
+        }
+
+        $epfEmployeeMonthly = $basicMonthly * 0.12;
+        $epfEmployerMonthly = $basicMonthly * 0.12;
+        $gratuityEmployeeMonthly = 0.0;
+        $gratuityEmployerMonthly = $basicMonthly * 0.0481;
+
+        $grossMonthly = $ctcMonthly > 0
+            ? ($ctcMonthly - ($basicMonthly * 0.1681)) / 1.0325
+            : ($basicMonthly + $hraMonthly);
+
+        $esicEmployeeMonthly = $grossMonthly * 0.0075;
+        $esicEmployerMonthly = $grossMonthly * 0.0325;
+
+        $specialAllowanceMonthly = max(0, $grossMonthly - $basicMonthly - $hraMonthly);
+        $inHandMonthly = $grossMonthly - $epfEmployeeMonthly - $esicEmployeeMonthly;
 
         return [
-            'basic' => $this->money($basicMonthly),
-            'basic_annual' => $this->money($basicAnnual),
-            'hra' => $this->money($hraMonthly),
-            'hra_annual' => $this->money($hraAnnual),
-            'total_monthly' => $this->money($totalMonthly),
-            'total_annual' => $this->money($totalAnnual),
+            'ctc_monthly' => $ctcMonthly,
+            'ctc_annual' => $ctcAnnual,
+            'basic_monthly' => $basicMonthly,
+            'basic_annual' => $basicAnnual,
+            'hra_monthly' => $hraMonthly,
+            'hra_annual' => $hraAnnual,
+            'gross_monthly' => $grossMonthly,
+            'gross_annual' => $grossMonthly * 12,
+            'special_allowance_monthly' => $specialAllowanceMonthly,
+            'special_allowance_annual' => $specialAllowanceMonthly * 12,
+            'epf_employee_monthly' => $epfEmployeeMonthly,
+            'epf_employee_annual' => $epfEmployeeMonthly * 12,
+            'epf_employer_monthly' => $epfEmployerMonthly,
+            'epf_employer_annual' => $epfEmployerMonthly * 12,
+            'esic_employee_monthly' => $esicEmployeeMonthly,
+            'esic_employee_annual' => $esicEmployeeMonthly * 12,
+            'esic_employer_monthly' => $esicEmployerMonthly,
+            'esic_employer_annual' => $esicEmployerMonthly * 12,
+            'gratuity_employee_monthly' => $gratuityEmployeeMonthly,
+            'gratuity_employee_annual' => $gratuityEmployeeMonthly * 12,
+            'gratuity_employer_monthly' => $gratuityEmployerMonthly,
+            'gratuity_employer_annual' => $gratuityEmployerMonthly * 12,
+            'in_hand_monthly' => $inHandMonthly,
+            'in_hand_annual' => $inHandMonthly * 12,
+        ];
+    }
+
+    private function buildCtcBreakdown(Candidate $candidate, ?array $salary = null): array
+    {
+        $salary ??= $this->calculateSalaryStructure($candidate);
+
+        return [
+            'basic' => $this->money($salary['basic_monthly']),
+            'basic_annual' => $this->money($salary['basic_annual']),
+            'hra' => $this->money($salary['hra_monthly']),
+            'hra_annual' => $this->money($salary['hra_annual']),
+            'gross' => $this->money($salary['gross_monthly']),
+            'gross_annual' => $this->money($salary['gross_annual']),
+            'special_allowance' => $this->money($salary['special_allowance_monthly']),
+            'special_allowance_annual' => $this->money($salary['special_allowance_annual']),
+            'epf_employee' => $this->money($salary['epf_employee_monthly']),
+            'epf_employee_annual' => $this->money($salary['epf_employee_annual']),
+            'epf_employer' => $this->money($salary['epf_employer_monthly']),
+            'epf_employer_annual' => $this->money($salary['epf_employer_annual']),
+            'esic_employee' => $this->money($salary['esic_employee_monthly']),
+            'esic_employee_annual' => $this->money($salary['esic_employee_annual']),
+            'esic_employer' => $this->money($salary['esic_employer_monthly']),
+            'esic_employer_annual' => $this->money($salary['esic_employer_annual']),
+            'gratuity_employee' => $this->money($salary['gratuity_employee_monthly']),
+            'gratuity_employee_annual' => $this->money($salary['gratuity_employee_annual']),
+            'gratuity_employer' => $this->money($salary['gratuity_employer_monthly']),
+            'gratuity_employer_annual' => $this->money($salary['gratuity_employer_annual']),
+            'total_monthly' => $this->money($salary['gross_monthly']),
+            'total_annual' => $this->money($salary['gross_annual']),
+            'ctc_monthly' => $this->money($salary['ctc_monthly']),
+            'ctc_annual' => $this->money($salary['ctc_annual']),
+            'in_hand_monthly' => $this->money($salary['in_hand_monthly']),
+            'in_hand_annual' => $this->money($salary['in_hand_annual']),
+        ];
+    }
+
+    private function salaryPlaceholderMap(array $salary): array
+    {
+        $ctc = $this->buildCtcBreakdown(new Candidate(), $salary);
+
+        return [
+            'basic_pay' => $ctc['basic'],
+            'hra' => $ctc['hra'],
+            'monthly_salary' => $ctc['gross'],
+            'gross_salary' => $ctc['gross'],
+            'gross_salary_annual' => $ctc['gross_annual'],
+            'special_allowance' => $ctc['special_allowance'],
+            'special_allowance_annual' => $ctc['special_allowance_annual'],
+            'epf_employee' => $ctc['epf_employee'],
+            'epf_employee_annual' => $ctc['epf_employee_annual'],
+            'epf_employer' => $ctc['epf_employer'],
+            'epf_employer_annual' => $ctc['epf_employer_annual'],
+            'esic_employee' => $ctc['esic_employee'],
+            'esic_employee_annual' => $ctc['esic_employee_annual'],
+            'esic_employer' => $ctc['esic_employer'],
+            'esic_employer_annual' => $ctc['esic_employer_annual'],
+            'gratuity_employee' => $ctc['gratuity_employee'],
+            'gratuity_employee_annual' => $ctc['gratuity_employee_annual'],
+            'gratuity_employer' => $ctc['gratuity_employer'],
+            'gratuity_employer_annual' => $ctc['gratuity_employer_annual'],
+            'in_hand_salary' => $ctc['in_hand_monthly'],
+            'in_hand_salary_annual' => $ctc['in_hand_annual'],
         ];
     }
 

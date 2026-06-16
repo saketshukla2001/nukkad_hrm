@@ -4,10 +4,10 @@
 <div class="card">
     <div class="page-header">
         <div>
-            <h2 style="margin:0;">Edit Candidate</h2>
-            <p class="subtitle">Update candidate details and documents.</p>
+            <h2>Edit Candidate</h2>
+            <p class="subtitle">Update details for <strong>{{ $candidate->name }}</strong></p>
         </div>
-        <a class="btn-secondary" href="{{ route('admin.candidates.index') }}">← Back</a>
+        <a class="btn-secondary" href="{{ route('admin.candidates.index') }}">← Back to List</a>
     </div>
 
     @if ($errors->any())
@@ -24,9 +24,8 @@
         @csrf
 
         <div class="form-grid">
-
             <div class="field">
-                <label>Name</label>
+                <label>Full Name</label>
                 <input type="text" name="name" value="{{ old('name', $candidate->name) }}">
             </div>
 
@@ -56,17 +55,17 @@
             </div>
 
             <div class="field">
-                <label>CTC in Word</label>
+                <label>CTC in Words</label>
                 <input type="text" name="ctc_in_word" value="{{ old('ctc_in_word', $candidate->ctc_in_word) }}">
             </div>
 
             <div class="field">
-                <label>Basic Pay</label>
+                <label>Basic Pay (Monthly)</label>
                 <input type="number" step="0.01" name="basic_pay" value="{{ old('basic_pay', $candidate->basic_pay) }}">
             </div>
 
             <div class="field">
-                <label>HRA</label>
+                <label>HRA (Monthly)</label>
                 <input type="number" step="0.01" name="hra" value="{{ old('hra', $candidate->hra) }}">
             </div>
 
@@ -81,12 +80,12 @@
             </div>
 
             <div class="field">
-                <label>Monthly Salary</label>
+                <label>Monthly Salary (Gross)</label>
                 <input type="number" step="0.01" name="monthly_salary" value="{{ old('monthly_salary', $candidate->monthly_salary) }}">
             </div>
 
             <div class="field">
-                <label>Target Percentage</label>
+                <label>Target % for Incentives</label>
                 <input type="number" name="target_percentage" value="{{ old('target_percentage', $candidate->target_percentage) }}">
             </div>
 
@@ -94,14 +93,14 @@
                 <label>Aadhar Card</label>
                 <input type="file" name="aadhar_file">
                 @if($candidate->aadhar_file)
-                    <p style="font-size:12px; color:rgba(100,116,139,0.95); margin:0;">Current File: {{ $candidate->aadhar_file }}</p>
+                    <p style="font-size:12px; color:var(--muted); margin:4px 0 0;">Current file: <strong>{{ $candidate->aadhar_file }}</strong></p>
                 @endif
             </div>
-
         </div>
 
-        <div style="margin-top:18px; display:flex; gap:10px; align-items:center;">
+        <div style="margin-top: 24px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
             <button type="submit" class="btn-primary">✅ Update Candidate</button>
+            <a class="btn-link" href="{{ route('admin.offerletter.generate', $candidate->id) }}">📝 Generate Offer Letter</a>
             <a class="btn-secondary" href="{{ route('admin.candidates.index') }}">Cancel</a>
         </div>
     </form>

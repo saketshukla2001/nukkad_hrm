@@ -1,47 +1,11 @@
 @extends('admin.layout')
 
 @section('content')
-<style>
-    .template-editor {
-        width: 100%;
-        min-height: 130px;
-        padding: 12px 14px;
-        border: 1px solid rgba(15,23,42,0.14);
-        border-radius: 12px;
-        background: #fff;
-        color: rgba(15,23,42,0.9);
-        line-height: 1.65;
-        outline: none;
-        overflow: auto;
-    }
-
-    .template-editor:focus {
-        border-color: rgba(37,99,235,0.55);
-        box-shadow: 0 0 0 4px rgba(37,99,235,0.10);
-    }
-
-    .template-editor-lg {
-        min-height: 360px;
-    }
-
-    .template-editor table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 10px 0;
-    }
-
-    .template-editor th,
-    .template-editor td {
-        border: 1px solid rgba(15,23,42,0.28);
-        padding: 8px;
-    }
-</style>
-
 <div class="card">
     <div class="page-header">
         <div>
-            <h2 style="margin:0;">Edit Offer Letter Template</h2>
-            <p class="subtitle">Update template title and content.</p>
+            <h2>Edit Offer Letter Template</h2>
+            <p class="subtitle">Customize header, body, table and footer for offer letters</p>
         </div>
     </div>
 
@@ -104,7 +68,7 @@
             <div class="template-editor" contenteditable="true" data-template-editor="table_html">{!! old('table_html', $template->table_html) !!}</div>
             <input type="hidden" name="table_html" value="">
             <div style="margin-top:8px; font-size:12px; color:rgba(100,116,139,0.95);">
-                Tip: Body me table yahi insert karne ke liye placeholder use karein: <code style="padding:2px 6px; border-radius:8px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{table}}</code>
+                Tip: Body me table insert karne ke liye placeholder use karein: <span class="code-chip">@{{table}}</span>
             </div>
         </div>
 
@@ -114,11 +78,11 @@
             <input type="hidden" name="footer" value="">
         </div>
 
-        <div class="card" style="padding:14px; margin: 12px 0 14px; background: rgba(15,23,42,0.02);">
+        <div class="card-nested">
             <div class="page-header" style="margin-bottom:10px;">
                 <div>
-                    <h3 style="margin:0;">Offer Letter Images</h3>
-                    <p class="subtitle">Upload images and show them in template using <code style="padding:2px 6px; border-radius:8px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{images}}</code>.</p>
+                    <h3>Offer Letter Images</h3>
+                    <p class="subtitle">Upload images and show them using <span class="code-chip">@{{images}}</span></p>
                 </div>
             </div>
 
@@ -141,54 +105,28 @@
             </div>
 
             @if(!empty($template->images) && $template->images->count())
-                <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:10px;">
+                <div class="image-grid">
                     @foreach($template->images as $img)
-                        <div style="border:1px solid rgba(15,23,42,0.12); border-radius:12px; padding:10px; width:220px; background:#fff;">
-                            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
-                                <div style="font-weight:800; font-size:13px; color:rgba(15,23,42,0.85); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                                    {{ $img->name ?? 'Image' }}
-                                </div>
-                                <a class="btn-danger" style="padding:6px 10px;" href="{{ route('admin.offerletter.images.delete', $img->id) }}">Remove</a>
+                        <div class="image-card">
+                            <div class="image-card-header">
+                                <div class="image-card-title">{{ $img->name ?? 'Image' }}</div>
+                                <a class="btn-danger btn-sm" href="{{ route('admin.offerletter.images.delete', $img->id) }}">Remove</a>
                             </div>
-                            <div style="margin-top:10px;">
-                                <img src="{{ asset($img->path) }}" alt="{{ $img->name }}" style="max-width:100%; height:auto; border-radius:10px; border:1px solid rgba(15,23,42,0.12);">
-                            </div>
+                            <img src="{{ asset($img->path) }}" alt="{{ $img->name }}" class="image-card-preview">
                         </div>
                     @endforeach
                 </div>
             @else
-                <div style="margin-top:10px; font-size:13px; color:rgba(100,116,139,0.95);">
-                    No images uploaded yet.
-                </div>
+                <p class="subtitle" style="margin-top:10px;">No images uploaded yet.</p>
             @endif
         </div>
 
-        <div style="font-size:13px; color:rgba(100,116,139,0.95); margin-bottom:14px;">
-            You can use placeholders:
-            <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;">
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{name}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{designation}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{location}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{date_of_commencement}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{monthly_salary}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{ctc_annual}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{ctc_in_word}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{reporting_boss}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{basic_pay}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{hra}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{annual_leave_days}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{sick_leave_days}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{target_percentage}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{ctc_table}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{table}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{images}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{aadhar_preview}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{aadhar_url}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{signature}}</code>
-                <code style="padding:6px 10px; border-radius:999px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{date}}</code>
-            </div>
-            <div style="margin-top:8px; font-size:12px;">
-                Note: Candidate ke almost saare DB fields directly placeholder ban sakte hain, jaise <code style="padding:2px 6px; border-radius:8px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{monthly_salary}}</code>, <code style="padding:2px 6px; border-radius:8px; background:rgba(15,23,42,0.06); border:1px solid rgba(15,23,42,0.08);">@{{location_hq}}</code>, etc.
+        <div class="placeholder-section">
+            <p class="subtitle" style="margin-bottom:8px;">Available placeholders — click to copy usage in template:</p>
+            <div class="chip-grid">
+                @foreach(['name','designation','location','date_of_commencement','monthly_salary','ctc_annual','ctc_in_word','reporting_boss','basic_pay','hra','epf_employee','esic_employee','gratuity_employer','in_hand_salary','annual_leave_days','sick_leave_days','target_percentage','ctc_table','table','images','aadhar_preview','aadhar_url','signature','date'] as $ph)
+                    <span class="code-chip">{{ '{' . '{' . $ph . '}' . '}' }}</span>
+                @endforeach
             </div>
         </div>
 
